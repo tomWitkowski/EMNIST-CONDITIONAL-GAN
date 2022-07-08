@@ -34,15 +34,20 @@ class Generator(tf.keras.Model):
         layer = tf.keras.layers.LeakyReLU(0.1)(layer)
         
         layer = tf.reshape(layer,(-1,7,7,16))
-
+        
+        layer = tf.keras.layers.Conv2D(16, (3,3) , padding='same')(layer)
+        layer = tf.keras.layers.BatchNormalization()(layer)
+        layer = tf.keras.layers.LeakyReLU(0.1)(layer)
+        layer = tf.keras.layers.Dropout(0.1)(layer)
+        
         layer = tf.keras.layers.UpSampling2D( (2,2) )(layer)
-        layer = tf.keras.layers.Conv2D(64, (4,4) , padding='same')(layer)
+        layer = tf.keras.layers.Conv2D(32, (4,4) , padding='same')(layer)
         layer = tf.keras.layers.BatchNormalization()(layer)
         layer = tf.keras.layers.LeakyReLU(0.1)(layer)
         layer = tf.keras.layers.Dropout(0.1)(layer)
 
         layer = tf.keras.layers.UpSampling2D( (2,2) )(layer)
-        layer = tf.keras.layers.Conv2D(128, (4,4) , padding='same')(layer)
+        layer = tf.keras.layers.Conv2D(16, (5,5) , padding='same')(layer)
         layer = tf.keras.layers.BatchNormalization()(layer)
         layer = tf.keras.layers.LeakyReLU(0.1)(layer)
         layer = tf.keras.layers.Dropout(0.1)(layer)
@@ -118,7 +123,6 @@ class Discriminator(tf.keras.Model):
         what = tf.keras.activations.softmax(what)
 
         output_layer = is_real * what
-        print(output_layer)
         
         super().__init__(inputs = [input_layer], outputs = [output_layer])
 
@@ -183,7 +187,6 @@ class GAN:
         valid = tf.one_hot(true_number, N_CLASS)
         fake = np.zeros((batch_size, N_CLASS))
 
-
         # # Train on generated images
         noise = np.random.normal(0, 1, (batch_size, LATENT_DIM))
         fake_images = self.generator([noise, true_number])
@@ -245,3 +248,28 @@ class GAN:
                 self.train_discriminator(images, labels, batch_size, mix_fit, add_mixed)
 
             self.train_generator(labels, batch_size)
+
+            
+    def load_weights(self, directory: str = 'weights', 
+                     generator_weights_name: str = 'generator', 
+                     discriminator_weights_name: str = 'discriminator'):
+        """
+        Load saved weights from directory
+        """
+        generator_weights = np.load(f'{directory}/{generator_weights_name}.npy', allow_pickle=True)
+        discriminator_weights = np.load(f'{directory}/{discriminator_weights_name}.npy', allow_pickle=True)
+        
+        self.generator.set_weights(generator_weights)
+        self.discriminator.set_weights(discriminator_weights)
+        
+        
+    def generate_row(self, row: list, rand: np.ndarray):
+        generated = self.generator([rand, row])
+        generated = tf.squeeze(tf.concat(tf.split(generated, generated.shape[0], axis=0), 2), axis=0)
+
+        rm = tf.reduce_mean(generated,-1, keepdims=True)
+        return tf.concat([rm]*3,-1)
+    
+    
+    def generate_on_table(self, table: list, rand: np.ndarray):
+        return tf.concat([self.generate_row(row, rand) for row in table],0).numpy() 

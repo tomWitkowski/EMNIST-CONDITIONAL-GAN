@@ -1,6 +1,7 @@
 import numpy as np
+from cfg import *
 
-translator = {
+translator: dict = {
      0: '0',
      1: '1',
      2: '2',
@@ -50,9 +51,64 @@ translator = {
      46: 't',
      47: ' '}
 
-retranslator = {v:k for k,v in translator.items()}
+retranslator: dict = {v:k for k,v in translator.items()}
 
 def text_to_input(text: str):
     text = list(map(lambda x: retranslator.get(x,retranslator[x.upper()]), text) )
     return np.array(text).reshape(-1,1)
 
+
+class InputTable:
+    """ 
+    Converts text into array of inputs
+    """
+    @staticmethod
+    def get_splits(line: list) -> list:
+        # add one as space
+        lens = [len(x)+1 for x in line]
+        
+        group: int = 0
+        splits: list = []
+        cumsum: int = 0
+        for x, word in zip(lens,line):
+            cumsum += x
+            
+            if '\n' in word:
+                splits.append(group)
+                group += 1
+                cumsum = 0
+                continue
+            
+            if cumsum > MAX_CHARS_PER_LINE:
+                group += 1
+                cumsum = x
+                
+            splits.append(group)
+        
+        return splits
+    
+    @staticmethod
+    def build_table(splits: list, line: list) -> list:
+        table: list = []
+        for split in set(splits):
+            logic_map = [x == split for x in splits]
+            row = ' '.join(np.array(line)[logic_map])
+            row += ' '*(MAX_CHARS_PER_LINE - len(row))
+            table.append(row)
+            
+        return table
+        
+        
+    def __init__(self, line: str):
+        self._line = line.split(' ')
+        self._splits = self.get_splits(self._line)
+        self._line = [x.replace('\n','') for x in self._line]
+        self._table = self.build_table(self._splits, self._line)
+        
+    
+    @property
+    def table(self) -> list:
+        """
+        Returns list of arrays
+        """
+        return [text_to_input(text) for text in self._table]
